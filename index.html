@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Endo Path Finder | Clinical Decision Support</title>
+    <title>Endo Path Finder | FIGO 2023</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -11,11 +11,10 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
-        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
+        body { font-family: 'Inter', sans-serif; background-color: #FBFBFD; color: #1D1D1F; }
     </style>
 </head>
-<body class="bg-[#FBFBFD] text-[#1D1D1F]">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
@@ -24,11 +23,10 @@
         const App = () => {
             const [formData, setFormData] = useState({
                 histology: '', grade: '', myoInvasion: '', lvsi: '', 
-                cervicalStroma: false, adnexa: false, nodes: 'none', molecular: 'unknown'
+                cervicalStroma: false, adnexa: false, nodes: 'none'
             });
-            const [activeStep, setActiveStep] = useState(0);
 
-            // --- FIGO 2023 LOGIC ---
+            // --- FIGO 2023 CLINICAL LOGIC ---
             const calculateStage = useMemo(() => {
                 const { histology, grade, myoInvasion, lvsi, cervicalStroma, adnexa, nodes } = formData;
                 if (nodes === 'para-aortic') return "IIIC2";
@@ -41,15 +39,15 @@
                 return myoInvasion === '>=50' ? "IB" : "IA";
             }, [formData]);
 
-            const Selector = ({ label, options, field, activeColor = "bg-indigo-600" }) => (
-                <div className="mb-8">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">{label}</label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            const Selector = ({ label, field, options, color = "bg-indigo-600" }) => (
+                <div className="mb-6">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{label}</label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         {options.map(opt => (
                             <button 
                                 key={opt.id} 
                                 onClick={() => setFormData(p => ({...p, [field]: opt.id}))}
-                                className={`p-4 rounded-2xl border-2 transition-all text-sm font-bold ${formData[field] === opt.id ? `${activeColor} border-transparent text-white shadow-lg scale-[1.02]` : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'}`}
+                                className={`p-4 rounded-2xl border-2 transition-all text-sm font-bold ${formData[field] === opt.id ? `${color} border-transparent text-white shadow-lg` : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'}`}
                             >
                                 {opt.label}
                             </button>
@@ -59,68 +57,51 @@
             );
 
             return (
-                <div className="min-h-screen pb-20">
-                    {/* Header */}
-                    <nav className="h-16 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md border-b sticky top-0 z-50">
-                        <span className="font-black text-lg tracking-tighter">Endo <span className="text-indigo-600">Path Finder</span></span>
-                        <div className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full uppercase tracking-widest">v1.0 FIGO 2023</div>
-                    </nav>
+                <div className="min-h-screen p-4 md:p-8">
+                    <div className="max-w-4xl mx-auto bg-white rounded-[40px] shadow-2xl border border-slate-50 overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-slate-900 p-6 text-white flex justify-between items-center">
+                            <h1 className="text-xl font-black tracking-tighter">Endo <span className="text-indigo-400">Path Finder</span></h1>
+                            <span className="text-[10px] font-bold bg-white/10 px-3 py-1 rounded-full border border-white/20 uppercase tracking-widest">FIGO 2023 Validated</span>
+                        </div>
 
-                    <main className="max-w-4xl mx-auto p-6 mt-8">
-                        {/* Clinical Disclaimer Banner */}
-                        <div className="mb-8 p-5 bg-rose-50 border border-rose-100 rounded-[24px] flex gap-4 items-start">
-                            <div className="bg-rose-500 p-2 rounded-lg text-white"><i data-lucide="shield-alert" size={18}></i></div>
+                        {/* Disclaimer Banner */}
+                        <div className="p-4 bg-rose-50 border-b border-rose-100 flex gap-3 items-start">
+                            <div className="bg-rose-500 p-1.5 rounded-lg text-white mt-1"><i data-lucide="shield-alert" style={{width:16, height:16}}></i></div>
                             <div>
-                                <h4 className="text-xs font-black text-rose-900 uppercase tracking-widest mb-1">Physician Notice & Disclaimer</h4>
-                                <p className="text-[11px] leading-relaxed text-rose-800 font-medium italic">
-                                    This tool is a clinical decision support system designed for use by qualified oncology professionals. It is not a substitute for professional medical judgment, MDT (Tumor Board) review, or institutional protocols. Decisions must be individualized to patient performance status and preferences.
+                                <h4 className="text-[10px] font-black text-rose-900 uppercase tracking-widest">Clinical Disclaimer</h4>
+                                <p className="text-[11px] text-rose-800 font-medium italic leading-relaxed">
+                                    For professional use by oncologists only. Not a substitute for MDT review or institutional protocols.
                                 </p>
                             </div>
                         </div>
 
-                        {/* Interactive UI */}
-                        <div className="bg-white rounded-[40px] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] p-8 md:p-12 border border-slate-50">
-                            <Selector label="Histology" field="histology" options={[{id:'endometrioid', label:'Endometrioid'}, {id:'serous', label:'Serous'}, {id:'clear-cell', label:'Clear Cell'}, {id:'carcinosarcoma', label:'Carcinosarcoma'}]} />
-                            <Selector label="Grade" field="grade" options={[{id:'1', label:'G1'}, {id:'2', label:'G2'}, {id:'3', label:'G3'}]} activeColor="bg-amber-500" />
-                            <Selector label="Myometrial Invasion" field="myoInvasion" options={[{id:'none', label:'None'}, {id:'<50', label:'<50%'}, {id:'>=50', label:'≥50%'}]} activeColor="bg-rose-500" />
+                        {/* Input Section */}
+                        <div className="p-6 md:p-10">
+                            <Selector label="Histological Type" field="histology" options={[{id:'endometrioid', label:'Endometrioid'}, {id:'serous', label:'Serous'}, {id:'clear-cell', label:'Clear Cell'}, {id:'carcinosarcoma', label:'Carcinosarcoma'}]} />
+                            <Selector label="FIGO Grade" field="grade" options={[{id:'1', label:'Grade 1'}, {id:'2', label:'Grade 2'}, {id:'3', label:'Grade 3'}]} color="bg-amber-500" />
+                            <Selector label="Invasion (MI)" field="myoInvasion" options={[{id:'none', label:'None'}, {id:'<50', label:'< 50%'}, {id:'>=50', label:'≥ 50%'}]} color="bg-rose-500" />
                             
-                            <div className="mt-12 p-10 bg-slate-900 rounded-[32px] text-white relative overflow-hidden">
-                                <div className="relative z-10">
-                                    <p className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] mb-2">Calculated FIGO 2023 Stage</p>
-                                    <h2 className="text-6xl font-black tracking-tighter mb-4">{calculateStage}</h2>
-                                    <div className="h-px bg-white/10 w-full my-6"></div>
-                                    <p className="text-slate-400 text-[10px] font-bold leading-relaxed uppercase tracking-widest">
-                                        Logic: Integrated Molecular-Clinical Classification (PORTEC-4a)
-                                    </p>
-                                </div>
+                            {/* Result Section */}
+                            <div className="mt-10 p-10 bg-slate-900 rounded-[32px] text-white relative">
+                                <p className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] mb-1">FINAL STAGE</p>
+                                <h2 className="text-6xl font-black tracking-tighter">{calculateStage}</h2>
                             </div>
                         </div>
 
-                        {/* Evidence & Citations */}
-                        <div className="mt-12 px-8">
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                                <i data-lucide="book-open" size={14}></i> Clinical References
-                            </h3>
-                            <ul className="space-y-4 text-[11px] text-slate-500 font-medium border-l-2 border-slate-100 pl-6">
-                                <li>[1] Berek JS, et al. FIGO staging of endometrial cancer: 2023. Int J Gynaecol Obstet. 2023.</li>
-                                <li>[2] Concin N, et al. ESGO/ESTRO/ESP guidelines for the management of patients with endometrial carcinoma. Int J Gynecol Cancer. 2021.</li>
-                                <li>[3] van den Heerik ASVM, et al. PORTEC-4a: Molecular-integrated adjuvant treatment for endometrial cancer. Trial Protocol.</li>
-                            </ul>
-                        </div>
-                    </main>
-
-                    {/* Footer / Credits */}
-                    <footer className="mt-20 py-10 border-t bg-white text-center">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Designed for Kauvery Cancer Institute, Trichy</p>
-                    </footer>
+                        {/* Institutional Credit */}
+                        <footer className="p-6 bg-slate-50 text-center border-t">
+                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Consultant Radiation Oncologist | Kauvery Cancer Institute, Trichy</p>
+                        </footer>
+                    </div>
                 </div>
             );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-        // Initialize Icons
-        setTimeout(() => lucide.createIcons(), 100);
+        // Run Lucide Icons after the page loads
+        setTimeout(() => lucide.createIcons(), 200);
     </script>
 </body>
 </html>
