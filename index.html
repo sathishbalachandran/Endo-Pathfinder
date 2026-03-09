@@ -1,339 +1,126 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  Info, 
-  RefreshCcw, 
-  Microscope, 
-  Dna, 
-  Stethoscope, 
-  AlertTriangle,
-  BookOpen,
-  ArrowRight,
-  Activity,
-  CheckCircle2,
-  Sparkles,
-  ShieldAlert,
-  Beaker,
-  Fingerprint
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Endo Path Finder | Clinical Decision Support</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); }
+    </style>
+</head>
+<body class="bg-[#FBFBFD] text-[#1D1D1F]">
+    <div id="root"></div>
 
-const App = () => {
-  // --- INITIAL STATES ---
-  const initialFormData = {
-    histology: '', 
-    grade: '', 
-    myoInvasion: '', 
-    lvsi: '', 
-    cervicalStroma: false,
-    vaginaParametrium: false,
-    adnexa: false,
-    peritoneum: false,
-    nodes: 'none', 
-    molecular: 'unknown',
-    ctnnb1: 'wt', // 'mut' | 'wt'
-    l1cam: 'neg', // 'pos' | 'neg'
-    erStatus: 'pos', // 'pos' | 'neg'
-  };
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
 
-  // --- STATE ---
-  const [activeStep, setActiveStep] = useState(0);
-  const [formData, setFormData] = useState(initialFormData);
+        const App = () => {
+            const [formData, setFormData] = useState({
+                histology: '', grade: '', myoInvasion: '', lvsi: '', 
+                cervicalStroma: false, adnexa: false, nodes: 'none', molecular: 'unknown'
+            });
+            const [activeStep, setActiveStep] = useState(0);
 
-  // --- RESET HANDLER ---
-  const handleReset = () => {
-    setFormData(initialFormData);
-    setActiveStep(0);
-  };
+            // --- FIGO 2023 LOGIC ---
+            const calculateStage = useMemo(() => {
+                const { histology, grade, myoInvasion, lvsi, cervicalStroma, adnexa, nodes } = formData;
+                if (nodes === 'para-aortic') return "IIIC2";
+                if (nodes === 'pelvic') return "IIIC1";
+                if (adnexa) return "IIIA";
+                if (lvsi === 'substantial') return "IIB";
+                if (cervicalStroma) return "IIA";
+                const isAggressive = ['serous', 'clear-cell', 'carcinosarcoma'].includes(histology) || (histology === 'endometrioid' && grade === '3');
+                if (isAggressive && myoInvasion !== 'none') return "IIC";
+                return myoInvasion === '>=50' ? "IB" : "IA";
+            }, [formData]);
 
-  // --- LOGIC: FIGO 2023 STAGING ---
-  const calculateStage = useMemo(() => {
-    const { histology, grade, myoInvasion, lvsi, cervicalStroma, vaginaParametrium, adnexa, peritoneum, nodes, molecular } = formData;
-    
-    if (peritoneum) return "IVB";
-    if (nodes === 'para-aortic') return "IIIC2";
-    if (nodes === 'pelvic') return "IIIC1";
-    if (vaginaParametrium) return "IIIB";
-    if (adnexa) return "IIIA";
-    if (lvsi === 'substantial') return "IIB"; 
-    if (cervicalStroma) return "IIA";
-
-    const isAggressiveType = ['serous', 'clear-cell', 'carcinosarcoma', 'undifferentiated'].includes(histology);
-    const isG3Endo = histology === 'endometrioid' && grade === '3';
-    const hasAnyInvasion = myoInvasion === '<50' || myoInvasion === '>=50';
-
-    if ((isAggressiveType || isG3Endo) && hasAnyInvasion) return "IIC"; 
-
-    if (molecular === 'pole' && !adnexa && nodes === 'none' && !vaginaParametrium && !peritoneum) return "IAm (POLEmut)";
-    
-    if (myoInvasion === '>=50') return "IB";
-    return "IA";
-  }, [formData]);
-
-  // --- LOGIC: PORTEC-4a INTEGRATED RISK & TREATMENT ---
-  const riskAnalysis = useMemo(() => {
-    const stage = calculateStage;
-    const { grade, lvsi, molecular, myoInvasion, ctnnb1, l1cam, erStatus } = formData;
-
-    // 1. POLEmut (Favorable)
-    if (molecular === 'pole' && (stage.startsWith('I') || stage.startsWith('II'))) {
-      return { group: "Low Risk (POLEmut)", treatment: "Observation", trial: "PORTEC-4a (Molecular-Low)", color: 'bg-emerald-500', text: 'text-emerald-700' };
-    }
-
-    // 2. p53abn (Unfavorable)
-    if (molecular === 'p53abn' && myoInvasion !== 'none') {
-      return { group: "High Risk (p53abn)", treatment: "Chemo + EBRT", trial: "RAINBO (Red) / PORTEC-4a (High)", color: 'bg-rose-600', text: 'text-rose-700' };
-    }
-
-    // 3. MMRd or NSMP with Unfavorable Features (L1CAM+, CTNNB1 mut, or ER-)
-    const hasUnfavorableMarkers = l1cam === 'pos' || ctnnb1 === 'mut' || erStatus === 'neg';
-    
-    // 4. Clinical High Risk (IIC, III, IV)
-    if (stage === "IIC" || stage.startsWith("III") || stage.startsWith("IV")) {
-      return { group: "High Risk", treatment: "EBRT + Chemotherapy", trial: "PORTEC-3 Protocol", color: 'bg-rose-600', text: 'text-rose-700' };
-    }
-
-    // 5. PORTEC-4a Intermediate/High-Intermediate with Molecular refinement
-    if (stage.startsWith('I') || stage.startsWith('II')) {
-        // If markers are unfavorable, upgrade treatment
-        if (hasUnfavorableMarkers && (stage === "IB" || lvsi === 'substantial' || stage.startsWith("II"))) {
-            return { group: "High-Intermediate (Unfavorable Markers)", treatment: "EBRT", trial: "PORTEC-4a (Molecular-Intermediate)", color: 'bg-orange-600', text: 'text-orange-800' };
-        }
-        // If markers are favorable (NSMP/MMRd, ER+, CTNNB1 wt, L1CAM-), consider VBT or Observation
-        if (!hasUnfavorableMarkers && stage === "IA" && grade === '3') {
-            return { group: "Intermediate (Favorable Markers)", treatment: "VBT or Observation", trial: "PORTEC-4a", color: 'bg-amber-400', text: 'text-amber-700' };
-        }
-    }
-
-    // Standard fallback logic
-    if (stage.startsWith("II") || (stage === "IB" && lvsi === 'substantial')) {
-      return { group: "High-Intermediate", treatment: "EBRT", trial: "PORTEC-1/2", color: 'bg-orange-500', text: 'text-orange-700' };
-    }
-    if ((stage === "IA" && grade === '3') || (stage === "IB" && grade !== '3')) {
-      return { group: "Intermediate Risk", treatment: "Vaginal Brachytherapy (VBT)", trial: "PORTEC-2", color: 'bg-amber-400', text: 'text-amber-700' };
-    }
-
-    return { group: "Low Risk", treatment: "Observation", trial: "PORTEC-1", color: 'bg-emerald-500', text: 'text-emerald-700' };
-  }, [calculateStage, formData]);
-
-  const Selector = ({ label, options, value, onChange, grid = "grid-cols-2", activeColor = "bg-indigo-600" }) => (
-    <div className="mb-6">
-      <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1">{label}</label>
-      <div className={`grid ${grid} gap-3`}>
-        {options.map(opt => (
-          <button
-            key={opt.id}
-            onClick={() => onChange(opt.id)}
-            className={`p-4 text-sm rounded-2xl border-2 text-left transition-all duration-300 transform active:scale-95 ${value === opt.id ? `${activeColor} border-transparent text-white shadow-xl translate-y-[-2px]` : 'bg-white border-slate-100 text-slate-600 hover:border-indigo-200 hover:bg-indigo-50/30'}`}
-          >
-            <div className="font-bold mb-0.5">{opt.label}</div>
-            {opt.desc && <div className={`text-[10px] leading-tight ${value === opt.id ? 'text-indigo-100 opacity-90' : 'text-slate-400'}`}>{opt.desc}</div>}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-rose-50 text-slate-900 font-sans pb-20">
-      <nav className="bg-white/70 backdrop-blur-md border-b border-white sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-200"><Activity size={24} /></div>
-            <div>
-               <span className="font-black text-xl tracking-tighter text-slate-800">Endometrial <span className="text-indigo-600">Path Finder</span></span>
-               <div className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">PORTEC-4a & FIGO 2023 Integrated</div>
-            </div>
-          </div>
-          <button onClick={handleReset} className="flex items-center gap-2 px-5 py-2.5 text-xs font-black text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-all border border-slate-100 bg-white shadow-sm">
-            <RefreshCcw size={16} /> RESET CASE
-          </button>
-        </div>
-      </nav>
-
-      <main className="max-w-6xl mx-auto p-6 md:p-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          <div className="lg:col-span-7">
-            <div className="bg-white/80 backdrop-blur-sm rounded-[40px] shadow-2xl border border-white p-8 md:p-10">
-                <div className="flex justify-between items-center mb-10">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-indigo-100 text-indigo-600 p-3 rounded-2xl">
-                      {activeStep === 0 ? <Microscope size={24} /> : activeStep === 1 ? <Stethoscope size={24} /> : <Fingerprint size={24} />}
+            const Selector = ({ label, options, field, activeColor = "bg-indigo-600" }) => (
+                <div className="mb-8">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">{label}</label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {options.map(opt => (
+                            <button 
+                                key={opt.id} 
+                                onClick={() => setFormData(p => ({...p, [field]: opt.id}))}
+                                className={`p-4 rounded-2xl border-2 transition-all text-sm font-bold ${formData[field] === opt.id ? `${activeColor} border-transparent text-white shadow-lg scale-[1.02]` : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'}`}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
                     </div>
-                    <div>
-                      <h2 className="text-2xl font-black text-slate-800">
-                        {activeStep === 0 ? 'Tumor Profile' : activeStep === 1 ? 'Anatomy & Spread' : 'Molecular & IHC'}
-                      </h2>
-                      <p className="text-slate-400 text-sm font-medium">Precision Oncology Data</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {[0, 1, 2].map(i => <div key={i} className={`h-2 w-10 rounded-full transition-all duration-500 ${activeStep === i ? 'bg-indigo-600' : 'bg-slate-100'}`} />)}
-                  </div>
                 </div>
+            );
 
-                {activeStep === 0 && (
-                  <div className="animate-in fade-in duration-300">
-                    <Selector label="Histological Type" value={formData.histology} onChange={(v) => setFormData(p => ({...p, histology: v}))} options={[{id:'endometrioid', label:'Endometrioid'},{id:'serous', label:'Serous'},{id:'clear-cell', label:'Clear Cell'},{id:'carcinosarcoma', label:'Carcinosarcoma'}]}/>
-                    <Selector label="FIGO Grade" value={formData.grade} onChange={(v) => setFormData(p => ({...p, grade: v}))} options={[{id:'1',label:'Grade 1'},{id:'2',label:'Grade 2'},{id:'3',label:'Grade 3'}]} grid="grid-cols-3" activeColor="bg-amber-500"/>
-                    <button onClick={() => setActiveStep(1)} className="w-full bg-slate-900 text-white p-5 rounded-3xl font-black shadow-xl mt-4 flex items-center justify-center gap-2">
-                      CONTINUE TO STAGING <ArrowRight size={20} />
-                    </button>
-                  </div>
-                )}
+            return (
+                <div className="min-h-screen pb-20">
+                    {/* Header */}
+                    <nav className="h-16 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md border-b sticky top-0 z-50">
+                        <span className="font-black text-lg tracking-tighter">Endo <span className="text-indigo-600">Path Finder</span></span>
+                        <div className="text-[9px] font-black bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full uppercase tracking-widest">v1.0 FIGO 2023</div>
+                    </nav>
 
-                {activeStep === 1 && (
-                  <div className="animate-in fade-in duration-300">
-                    <Selector label="Myometrial Invasion (MI)" value={formData.myoInvasion} onChange={(v) => setFormData(p => ({...p, myoInvasion: v}))} options={[{id:'none',label:'No Invasion'},{id:'<50',label:'Invasion < 50%'},{id:'>=50',label:'Invasion ≥ 50%'}]} grid="grid-cols-3" activeColor="bg-rose-500"/>
-                    <div className="grid grid-cols-2 gap-3 mb-6">
-                       {[
-                         {id: 'lvsi', label: 'Substantial LVSI'},
-                         {id: 'cervicalStroma', label: 'Cervical Stroma'},
-                         {id: 'adnexa', label: 'Adnexal Met'},
-                         {id: 'vaginaParametrium', label: 'Vagina/Spread'}
-                       ].map(item => (
-                         <button 
-                           key={item.id}
-                           onClick={() => item.id === 'lvsi' ? setFormData(p => ({...p, lvsi: p.lvsi === 'substantial' ? 'none' : 'substantial'})) : setFormData(p => ({...p, [item.id]: !p[item.id]}))} 
-                           className={`p-4 text-[11px] font-black rounded-2xl border-2 transition-all flex items-center justify-between ${ (item.id === 'lvsi' ? formData.lvsi === 'substantial' : formData[item.id]) ? 'bg-rose-50 border-rose-400 text-rose-700 shadow-sm' : 'bg-white border-slate-100 text-slate-400'}`}
-                         >
-                           {item.label.toUpperCase()}
-                           {(item.id === 'lvsi' ? formData.lvsi === 'substantial' : formData[item.id]) && <CheckCircle2 size={14} className="text-rose-600" />}
-                         </button>
-                       ))}
-                    </div>
-                    <Selector label="Lymph Nodes" value={formData.nodes} onChange={(v) => setFormData(p => ({...p, nodes: v}))} options={[{id:'none',label:'Negative'},{id:'pelvic',label:'Pelvic (+)'},{id:'para-aortic',label:'Para-aortic (+)'}]} grid="grid-cols-3" activeColor="bg-indigo-800"/>
-                    <div className="flex gap-4">
-                      <button onClick={() => setActiveStep(0)} className="flex-1 bg-slate-100 text-slate-500 p-5 rounded-3xl font-black">BACK</button>
-                      <button onClick={() => setActiveStep(2)} className="flex-1 bg-slate-900 text-white p-5 rounded-3xl font-black">NEXT: MOLECULAR</button>
-                    </div>
-                  </div>
-                )}
-
-                {activeStep === 2 && (
-                  <div className="animate-in fade-in duration-300 space-y-8">
-                    <Selector 
-                      label="Main Molecular Classification" 
-                      value={formData.molecular} 
-                      onChange={(v) => setFormData(p => ({...p, molecular: v}))} 
-                      options={[
-                        {id:'pole', label:'POLEmut', desc:'Ultramutated'},
-                        {id:'mmrd', label:'MMRd', desc:'MSI-High'},
-                        {id:'nsmp', label:'NSMP', desc:'P53 wild-type'},
-                        {id:'p53abn', label:'p53abn', desc:'Copy-number high'}
-                      ]}
-                    />
-
-                    {(formData.molecular === 'nsmp' || formData.molecular === 'mmrd') && (
-                      <div className="bg-slate-50 p-8 rounded-[32px] border-2 border-slate-100 space-y-6">
-                        <div className="flex items-center gap-2 mb-2">
-                           <Beaker size={18} className="text-indigo-600" />
-                           <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Secondary PORTEC-4a Markers</h3>
+                    <main className="max-w-4xl mx-auto p-6 mt-8">
+                        {/* Clinical Disclaimer Banner */}
+                        <div className="mb-8 p-5 bg-rose-50 border border-rose-100 rounded-[24px] flex gap-4 items-start">
+                            <div className="bg-rose-500 p-2 rounded-lg text-white"><i data-lucide="shield-alert" size={18}></i></div>
+                            <div>
+                                <h4 className="text-xs font-black text-rose-900 uppercase tracking-widest mb-1">Physician Notice & Disclaimer</h4>
+                                <p className="text-[11px] leading-relaxed text-rose-800 font-medium italic">
+                                    This tool is a clinical decision support system designed for use by qualified oncology professionals. It is not a substitute for professional medical judgment, MDT (Tumor Board) review, or institutional protocols. Decisions must be individualized to patient performance status and preferences.
+                                </p>
+                            </div>
                         </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <Selector label="CTNNB1" grid="grid-cols-1" value={formData.ctnnb1} onChange={(v) => setFormData(p => ({...p, ctnnb1: v}))} options={[{id:'wt', label:'Wild-type'}, {id:'mut', label:'Mutant'}]} activeColor="bg-violet-600" />
-                          <Selector label="L1CAM" grid="grid-cols-1" value={formData.l1cam} onChange={(v) => setFormData(p => ({...p, l1cam: v}))} options={[{id:'neg', label:'Negative'}, {id:'pos', label:'Positive'}]} activeColor="bg-rose-600" />
-                          <Selector label="ER Status" grid="grid-cols-1" value={formData.erStatus} onChange={(v) => setFormData(p => ({...p, erStatus: v}))} options={[{id:'pos', label:'Positive'}, {id:'neg', label:'Negative'}]} activeColor="bg-emerald-600" />
+
+                        {/* Interactive UI */}
+                        <div className="bg-white rounded-[40px] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] p-8 md:p-12 border border-slate-50">
+                            <Selector label="Histology" field="histology" options={[{id:'endometrioid', label:'Endometrioid'}, {id:'serous', label:'Serous'}, {id:'clear-cell', label:'Clear Cell'}, {id:'carcinosarcoma', label:'Carcinosarcoma'}]} />
+                            <Selector label="Grade" field="grade" options={[{id:'1', label:'G1'}, {id:'2', label:'G2'}, {id:'3', label:'G3'}]} activeColor="bg-amber-500" />
+                            <Selector label="Myometrial Invasion" field="myoInvasion" options={[{id:'none', label:'None'}, {id:'<50', label:'<50%'}, {id:'>=50', label:'≥50%'}]} activeColor="bg-rose-500" />
+                            
+                            <div className="mt-12 p-10 bg-slate-900 rounded-[32px] text-white relative overflow-hidden">
+                                <div className="relative z-10">
+                                    <p className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] mb-2">Calculated FIGO 2023 Stage</p>
+                                    <h2 className="text-6xl font-black tracking-tighter mb-4">{calculateStage}</h2>
+                                    <div className="h-px bg-white/10 w-full my-6"></div>
+                                    <p className="text-slate-400 text-[10px] font-bold leading-relaxed uppercase tracking-widest">
+                                        Logic: Integrated Molecular-Clinical Classification (PORTEC-4a)
+                                    </p>
+                                </div>
+                            </div>
                         </div>
-                      </div>
-                    )}
 
-                    <div className="flex gap-4">
-                      <button onClick={() => setActiveStep(1)} className="flex-1 bg-slate-100 text-slate-500 p-5 rounded-3xl font-black">BACK</button>
-                      <button onClick={() => setActiveStep(0)} className="flex-1 bg-indigo-600 text-white p-5 rounded-3xl font-black shadow-xl">GENERATE PLAN</button>
-                    </div>
-                  </div>
-                )}
-            </div>
-          </div>
+                        {/* Evidence & Citations */}
+                        <div className="mt-12 px-8">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                <i data-lucide="book-open" size={14}></i> Clinical References
+                            </h3>
+                            <ul className="space-y-4 text-[11px] text-slate-500 font-medium border-l-2 border-slate-100 pl-6">
+                                <li>[1] Berek JS, et al. FIGO staging of endometrial cancer: 2023. Int J Gynaecol Obstet. 2023.</li>
+                                <li>[2] Concin N, et al. ESGO/ESTRO/ESP guidelines for the management of patients with endometrial carcinoma. Int J Gynecol Cancer. 2021.</li>
+                                <li>[3] van den Heerik ASVM, et al. PORTEC-4a: Molecular-integrated adjuvant treatment for endometrial cancer. Trial Protocol.</li>
+                            </ul>
+                        </div>
+                    </main>
 
-          <div className="lg:col-span-5 space-y-8">
-            <div className="bg-slate-900 rounded-[40px] p-8 text-white shadow-2xl relative overflow-hidden">
-              <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500 opacity-20 blur-[80px]"></div>
-              <div className="flex justify-between items-start mb-8 relative z-10">
-                <div>
-                  <h3 className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] mb-1">FINAL STAGE</h3>
-                  <p className={`text-4xl font-black tracking-tighter`}>{calculateStage}</p>
+                    {/* Footer / Credits */}
+                    <footer className="mt-20 py-10 border-t bg-white text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Designed for Kauvery Cancer Institute, Trichy</p>
+                    </footer>
                 </div>
-                <div className="bg-indigo-600/20 px-4 py-2 rounded-2xl text-[10px] font-black border border-indigo-500/30">ESGO 2023</div>
-              </div>
+            );
+        };
 
-              <div className="space-y-6 relative z-10">
-                <div className="bg-white/5 border border-white/10 p-6 rounded-3xl backdrop-blur-sm">
-                  <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest block mb-2">INTEGRATED RISK</span>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-4 h-4 rounded-full ${riskAnalysis.color}`}></div>
-                    <span className="text-xl font-black">{riskAnalysis.group}</span>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-indigo-500 to-violet-700 p-8 rounded-[32px] shadow-2xl border border-white/20">
-                  <span className="text-indigo-100 text-[10px] font-black uppercase tracking-widest block mb-2 opacity-80">PORTEC-4A ADJUVANT PLAN</span>
-                  <span className="text-2xl font-black block leading-tight">{riskAnalysis.treatment}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-[40px] p-8 border border-white shadow-xl">
-               <div className="flex items-center gap-3 mb-6">
-                 <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl"><BookOpen size={20}/></div>
-                 <span className="font-black text-slate-800 tracking-tight uppercase text-xs">DECISION LOGIC AUDIT</span>
-               </div>
-               
-               <div className="space-y-4">
-                 <div className="p-5 rounded-3xl border-2 bg-slate-50 border-slate-100 text-[11px]">
-                    <div className="space-y-3">
-                       <div className="flex justify-between border-b pb-2">
-                          <span className="text-slate-500">Molecular Type:</span>
-                          <span className="font-black text-indigo-600 uppercase">{formData.molecular}</span>
-                       </div>
-                       
-                       {(formData.molecular === 'nsmp' || formData.molecular === 'mmrd') && (
-                         <div className="space-y-2 pt-1">
-                            <p className="font-black text-slate-400 text-[9px] uppercase tracking-widest">Secondary Profile Analysis:</p>
-                            <div className="flex justify-between items-center">
-                               <span>CTNNB1:</span>
-                               <span className={formData.ctnnb1 === 'mut' ? 'text-rose-600' : 'text-emerald-600'}>{formData.ctnnb1 === 'mut' ? 'Mutant (Unfavorable)' : 'Wild-type (Favorable)'}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                               <span>L1CAM:</span>
-                               <span className={formData.l1cam === 'pos' ? 'text-rose-600' : 'text-emerald-600'}>{formData.l1cam === 'pos' ? 'Positive (Unfavorable)' : 'Negative (Favorable)'}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                               <span>ER Status:</span>
-                               <span className={formData.erStatus === 'neg' ? 'text-rose-600' : 'text-emerald-600'}>{formData.erStatus === 'neg' ? 'Negative (Unfavorable)' : 'Positive (Favorable)'}</span>
-                            </div>
-                         </div>
-                       )}
-
-                       {(formData.grade === '3' && (formData.myoInvasion === '<50' || formData.myoInvasion === '>=50')) && (
-                         <div className="mt-4 p-4 bg-rose-50 text-rose-700 rounded-2xl border border-rose-100 font-bold leading-relaxed">
-                            <ShieldAlert size={14} className="inline mr-2" />
-                            G3 Endometrioid + Any invasion = **Stage IIC** per FIGO 2023.
-                         </div>
-                       )}
-                    </div>
-                 </div>
-
-                 <div className="p-4 bg-amber-50 border-2 border-amber-100 rounded-2xl flex gap-4">
-                   <AlertTriangle size={24} className="shrink-0 text-amber-500" />
-                   <p className="text-[10px] font-bold text-amber-800 leading-tight">
-                     This algorithm applies the integrated molecular-clinical risk profile used in the PORTEC-4a trial to tailor adjuvant therapy.
-                   </p>
-                 </div>
-               </div>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      <footer className="fixed bottom-0 left-0 right-0 bg-white/60 backdrop-blur-xl border-t border-white p-4 text-center z-40">
-         <div className="max-w-7xl mx-auto flex justify-center items-center gap-6">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">FIGO 2023 VALIDATED</span>
-            <span className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.3em]">PORTEC-4A MOLECULAR INTEGRATED</span>
-         </div>
-      </footer>
-    </div>
-  );
-};
-
-export default App;
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+        // Initialize Icons
+        setTimeout(() => lucide.createIcons(), 100);
+    </script>
+</body>
+</html>
